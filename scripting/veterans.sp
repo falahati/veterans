@@ -9,6 +9,7 @@
 
 new String:CacheFile[PLATFORM_MAX_PATH];
 
+new Handle:cvar_url;
 new Handle:cvar_enable;
 new Handle:cvar_minPlaytime;
 new Handle:cvar_minPlaytimeExcludingLast2Weeks;
@@ -34,7 +35,9 @@ public OnPluginStart()
 	LoadTranslations("veterans.phrases");
 	
 	CreateConVar("sm_veterans_version", PLUGIN_VERSION, "Veterans Only Version", FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_DONTRECORD);
-
+	
+	cvar_url = 								CreateConVar("sm_veterans_url", 					"http://falahati.net/steamapi/queryPlaytime.php", 
+															"Address of the PHP file responsible for getting user played time.", FCVAR_PLUGIN);		
 	cvar_enable = 							CreateConVar("sm_veterans_enable", 					"1", 
 															"Is VeteransOnly plugin enable?", FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	cvar_gameId = 							CreateConVar("sm_veterans_gameid", 					"730", 
@@ -137,8 +140,10 @@ RequestNewData(client, const String:steamId[])
 	IntToString(GetConVarInt(cvar_minPlaytime), maxTotal, sizeof maxTotal);
 	decl String:maxTotalNo2Weeks[16];
 	IntToString(GetConVarInt(cvar_minPlaytimeExcludingLast2Weeks), maxTotalNo2Weeks, sizeof maxTotalNo2Weeks);
-
-	new Handle:hRequest = SteamWorks_CreateHTTPRequest(EHTTPMethod:k_EHTTPMethodGET, "http://falahati.net/steamapi/queryPlaytime.php");
+	
+	decl String:url[256];
+	GetConVarString(cvar_url, url, sizeof[url]);
+	new Handle:hRequest = SteamWorks_CreateHTTPRequest(EHTTPMethod:k_EHTTPMethodGET, url);
 	
 	SteamWorks_SetHTTPRequestNetworkActivityTimeout(hRequest, GetConVarInt(cvar_connectionTimeout));
 	
