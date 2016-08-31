@@ -142,7 +142,7 @@ RequestNewData(client, const String:steamId[])
 	IntToString(GetConVarInt(cvar_minPlaytimeExcludingLast2Weeks), maxTotalNo2Weeks, sizeof maxTotalNo2Weeks);
 	
 	decl String:url[256];
-	GetConVarString(cvar_url, url, sizeof[url]);
+	GetConVarString(cvar_url, url, sizeof url);
 	new Handle:hRequest = SteamWorks_CreateHTTPRequest(EHTTPMethod:k_EHTTPMethodGET, url);
 	
 	SteamWorks_SetHTTPRequestNetworkActivityTimeout(hRequest, GetConVarInt(cvar_connectionTimeout));
