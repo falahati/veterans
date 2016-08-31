@@ -2,7 +2,7 @@
 #pragma dynamic 645221
 #define AUTOLOAD_EXTENSIONS
 #define REQUIRE_EXTENSIONS
-#define PLUGIN_VERSION "1.0"
+#define PLUGIN_VERSION "1.1"
 
 #include <SteamWorks>
 
@@ -34,35 +34,35 @@ public OnPluginStart()
 	AddServerTag2("Veterans");
 	LoadTranslations("veterans.phrases");
 	
-	CreateConVar("sm_veterans_version", PLUGIN_VERSION, "Veterans Only Version", FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	CreateConVar("sm_veterans_version", PLUGIN_VERSION, "Veterans Only Version", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	
 	cvar_url = 								CreateConVar("sm_veterans_url", 					"http://falahati.net/steamapi/queryPlaytime.php", 
-															"Address of the PHP file responsible for getting user played time.", FCVAR_PLUGIN);		
+															"Address of the PHP file responsible for getting user played time.", FCVAR_PROTECTED);		
 	cvar_enable = 							CreateConVar("sm_veterans_enable", 					"1", 
-															"Is VeteransOnly plugin enable?", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+															"Is VeteransOnly plugin enable?", FCVAR_NONE, true, 0.0, true, 1.0);
 	cvar_gameId = 							CreateConVar("sm_veterans_gameid", 					"730", 
-															"Steam's Store id of the game you want us to check against?", FCVAR_PLUGIN, 
+															"Steam's Store id of the game you want us to check against?", FCVAR_NONE, 
 															true, 0.0, true, 99999999.0);
 	cvar_kickWhenFailure = 					CreateConVar("sm_veterans_kickfailure", 			"0", 
-															"Should we kick the player when something bad happens such as failing to retrieve the user's info?", FCVAR_PLUGIN, 
+															"Should we kick the player when something bad happens such as failing to retrieve the user's info?", FCVAR_NONE, 
 															true, 0.0, true, 1.0);
 	cvar_kickWhenPrivate = 					CreateConVar("sm_veterans_kickprivate", 			"0", 
-															"Should we kick the player when he/she has a private or friend only profile?", FCVAR_PLUGIN, 
+															"Should we kick the player when he/she has a private or friend only profile?", FCVAR_NONE, 
 															true, 0.0, true, 1.0);
 	cvar_connectionTimeout = 				CreateConVar("sm_veterans_timeout", 				"10", 
-															"Maximum number of seconds till we consider the requesting connection timed out?", FCVAR_PLUGIN, 
+															"Maximum number of seconds till we consider the requesting connection timed out?", FCVAR_NONE, 
 															true, 0.0, true, 300.0);
 	cvar_banTime = 							CreateConVar("sm_veterans_bantime", 				"0", 
-															"Should me ban the player instead of kicking and if we should, for how long (in minutes)?", FCVAR_PLUGIN, 
+															"Should me ban the player instead of kicking and if we should, for how long (in minutes)?", FCVAR_NONE, 
 															true, 0.0, true, 31536000.0);
 	cvar_minPlaytime = 						CreateConVar("sm_veterans_mintotal", 				"6000", 
-															"Minimum total playtime amount that player needs to have (in minutes)?", FCVAR_PLUGIN, 
+															"Minimum total playtime amount that player needs to have (in minutes)?", FCVAR_NONE, 
 															true, 0.0, true, 600000.0);
 	cvar_minPlaytimeExcludingLast2Weeks = 	CreateConVar("sm_veterans_mintotalminuslastweeks", 	"3000", 
-															"Minimum total playtime amount (excluding last 2 weeks) that player needs to have (in minutes)?", FCVAR_PLUGIN, 
+															"Minimum total playtime amount (excluding last 2 weeks) that player needs to have (in minutes)?", FCVAR_NONE, 
 															true, 0.0, true, 600000.0);
 	cvar_cacheTime = 						CreateConVar("sm_veterans_cachetime", 				"86400", 
-															"Amount of time in seconds that we should not send a delicate request for the same query.", FCVAR_PLUGIN, 
+															"Amount of time in seconds that we should not send a delicate request for the same query.", FCVAR_NONE, 
 															true, 0.0, true, 31536000.0);
 
 	AutoExecConfig(true, "veterans");
