@@ -9,6 +9,9 @@ It is possible to host the PHP part of the project on your website. To do so, pr
 3. (Optional, but highly recommended) Create a folder named "WebCache" and give PHP write access to it. (chmod 755 or 777 for Linux)
 4. Edit the plugin configuration file and change the "sm_veterans_url" cvar to the address of the newly uploaded PHP file.
 
+## Donation
+[<img width="24" height="24" src="http://icons.iconarchive.com/icons/sonya/swarm/256/Coffee-icon.png"/>**Every coffee counts! :)**](https://www.coinpayments.net/index.php?cmd=_donate&reset=1&merchant=820707aded07845511b841f9c4c335cd&item_name=Donate&currency=USD&amountf=10.00000000&allow_amount=1&want_shipping=0&allow_extra=1)
+
 ## License
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
