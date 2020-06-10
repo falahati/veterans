@@ -41,13 +41,22 @@ function Handle()
 		return "";
 	}
 	
-	if (!$content || strpos(strtolower($endUrl), "/games") === false || strpos(strtolower($endUrl), "tab=all") === false || 
-		strpos(strtolower($content), "<error>") !== false || !($result = ParseXML($content, $gameId)))
+	if (
+		!$content || 
+		strpos(strtolower($endUrl), "/games") === false || 
+		strpos(strtolower($endUrl), "tab=all") === false || 
+		strpos(strtolower($content), "<error>") !== false || 
+		!($result = ParseXML($content, $gameId))
+	)
 	{
 		return "";
 	}
-		
-	@file_put_contents($cacheFile, $result);
+	
+	// Cache only if the result is valid
+	if ($result != "0|0") {
+		@file_put_contents($cacheFile, $result);
+	}
+	
 	return $result;
 }
 
@@ -58,11 +67,13 @@ function ParseXML($xml, $gameId)
 	{
 		return false;
 	}
+	
 	$result = $data->xpath('(//gamesList/games/game[appID = "' . $gameId . '"])[1]');
 	if (count($result) != 1)
 	{
 		return "0|0";
 	}
+	
 	$result = $result[0];
 	$hoursOnRecord = isset($result->hoursOnRecord) ? ParseAsMinutes($result->hoursOnRecord) : 0;
 	$hoursLast2Weeks = isset($result->hoursLast2Weeks) ? ParseAsMinutes($result->hoursLast2Weeks) : 0;
