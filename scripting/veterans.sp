@@ -2,7 +2,7 @@
 #pragma dynamic 645221
 #define AUTOLOAD_EXTENSIONS
 #define REQUIRE_EXTENSIONS
-#define PLUGIN_VERSION "1.3"
+#define PLUGIN_VERSION "1.4"
 #define MAX_FLOAT 99999999.0
 
 #include <SteamWorks>
