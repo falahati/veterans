@@ -15,4 +15,16 @@
 		"#format"		"{1:.1f},{2:.1f}"
 		"en"			"You need to have at least {1} hours of total playtime and {2} hours of playtime minus your last two weeks playtime, to be able to join this server"
 	}
+	
+	"EXCLUDED"
+	{
+		"#format"		"{1:s}"
+		"en"			"SteamId {1} added to the exclude list"
+	}
+	
+	"INCLUDED"
+	{
+		"#format"		"{1:s}"
+		"en"			"SteamId {1} removed from the exclude list"
+	}
 }

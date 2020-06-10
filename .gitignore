@@ -1,1 +1,13 @@
 plugins/*
+compile/*
+/bin/*
+/configs/*
+/extensions/*
+/gamedata/*
+/GPLv2.txt
+/GPLv3.txt
+/LICENSE.txt
+/scripting/*
+!/scripting/veterans*
+/translations/*
+!/translations/veterans*
