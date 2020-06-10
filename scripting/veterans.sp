@@ -3,6 +3,7 @@
 #define AUTOLOAD_EXTENSIONS
 #define REQUIRE_EXTENSIONS
 #define PLUGIN_VERSION "1.3"
+#define MAX_FLOAT 99999999.0
 
 #include <SteamWorks>
 
@@ -58,7 +59,7 @@ public OnPluginStart()
 		"sm_veterans_gameid",
 		"730",
 		"Steam's store id of the game you want to check the player time of.",
-		FCVAR_NONE, true, 0.0, true, MAX_INT
+		FCVAR_NONE, true, 0.0, true, MAX_FLOAT
 	);
 	cvar_kickWhenFailure = CreateConVar(
 		"sm_veterans_kickfailure",
@@ -94,25 +95,25 @@ public OnPluginStart()
 		"sm_veterans_bantime",
 		"0",
 		"Should me ban the player instead of kicking and if we should, for how long (in minutes)?",
-		FCVAR_NONE, true, 0.0, true, MAX_INT
+		FCVAR_NONE, true, 0.0, true, MAX_FLOAT
 	);
 	cvar_minPlaytime = CreateConVar(
 		"sm_veterans_mintotal",
 		"6000",
 		"Minimum total playtime amount that player needs to have (in minutes)?",
-		FCVAR_NONE, true, 0.0, true, MAX_INT
+		FCVAR_NONE, true, 0.0, true, MAX_FLOAT
 	);
 	cvar_minPlaytimeExcludingLast2Weeks = CreateConVar(
 		"sm_veterans_mintotalminuslastweeks",
 		"3000",
 		"Minimum total playtime amount (excluding last 2 weeks) that player needs to have (in minutes)?",
-		FCVAR_NONE, true, 0.0, true, MAX_INT
+		FCVAR_NONE, true, 0.0, true, MAX_FLOAT
 	);
 	cvar_cacheTime = CreateConVar(
 		"sm_veterans_cachetime",
 		"86400",
 		"Amount of time in seconds that we should not send a delicate request for the same query.",
-		FCVAR_NONE, true, 0.0, true, MAX_INT
+		FCVAR_NONE, true, 0.0, true, MAX_FLOAT
 	);
 	cvar_excludePrimes = CreateConVar(
 		"sm_veterans_excludeprimes",
