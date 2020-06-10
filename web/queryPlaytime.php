@@ -82,7 +82,6 @@ function ParseXML($xml, $gameId)
 
 function GetFriendId($steamId)
 {
-	$gameType = 0;
 	$authServer = 0;
 	$clientId = '';
 	$steamId = str_replace('STEAM_', '', $steamId);
@@ -93,7 +92,6 @@ function GetFriendId($steamId)
 		return false;
 	}
 	
-	$gameType = intval($parts[0]);
 	$authServer = intval($parts[1]);
 	$clientId = intval($parts[2]);
 	if (!$clientId || $authServer > 1 || $authServer < 0)
@@ -101,7 +99,6 @@ function GetFriendId($steamId)
 		return false;
 	}
 	return 76561197960265728 + (2 * $clientId) + $authServer;
-	return($result);
 }
 
 function ParseAsMinutes($str)
