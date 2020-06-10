@@ -8,6 +8,7 @@
 
 new String:CacheFile[PLATFORM_MAX_PATH];
 new String:ExcludeFile[PLATFORM_MAX_PATH];
+new bool:isBlocked = false;
 
 new Handle:cvar_url;
 new Handle:cvar_enable;
@@ -57,7 +58,7 @@ public OnPluginStart()
 		"sm_veterans_gameid",
 		"730",
 		"Steam's store id of the game you want to check the player time of.",
-		FCVAR_NONE, true, 0.0, true, 99999999.0
+		FCVAR_NONE, true, 0.0, true, MAX_INT
 	);
 	cvar_kickWhenFailure = CreateConVar(
 		"sm_veterans_kickfailure",
@@ -93,25 +94,25 @@ public OnPluginStart()
 		"sm_veterans_bantime",
 		"0",
 		"Should me ban the player instead of kicking and if we should, for how long (in minutes)?",
-		FCVAR_NONE, true, 0.0, true, 31536000.0
+		FCVAR_NONE, true, 0.0, true, MAX_INT
 	);
 	cvar_minPlaytime = CreateConVar(
 		"sm_veterans_mintotal",
 		"6000",
 		"Minimum total playtime amount that player needs to have (in minutes)?",
-		FCVAR_NONE, true, 0.0, true, 600000.0
+		FCVAR_NONE, true, 0.0, true, MAX_INT
 	);
 	cvar_minPlaytimeExcludingLast2Weeks = CreateConVar(
 		"sm_veterans_mintotalminuslastweeks",
 		"3000",
 		"Minimum total playtime amount (excluding last 2 weeks) that player needs to have (in minutes)?",
-		FCVAR_NONE, true, 0.0, true, 600000.0
+		FCVAR_NONE, true, 0.0, true, MAX_INT
 	);
 	cvar_cacheTime = CreateConVar(
 		"sm_veterans_cachetime",
 		"86400",
 		"Amount of time in seconds that we should not send a delicate request for the same query.",
-		FCVAR_NONE, true, 0.0, true, 31536000.0
+		FCVAR_NONE, true, 0.0, true, MAX_INT
 	);
 	cvar_excludePrimes = CreateConVar(
 		"sm_veterans_excludeprimes",
@@ -143,12 +144,27 @@ public OnPluginEnd()
 public OnMapStart()
 {
 	CleanupCache(false);
+	if (GetEngineVersion() == Engine_TF2){
+		ConVar tf2QuickPlayDisable = FindConVar("tf_server_identity_disable_quickplay");
+		if(tf2QuickPlayDisable != INVALID_HANDLE)
+		{
+			isBlocked = GetConVarInt(tf2QuickPlayDisable) == 0;
+			return;
+		} 
+	}
+	
+	isBlocked = false;
 }
 
 public OnClientAuthorized(client, const String:steamId[])
 {
-	if (!GetConVarBool(cvar_enable) || StrEqual(steamId, "BOT", false))
+	if (isBlocked || !GetConVarBool(cvar_enable))
 	{
+		return;
+	}
+
+	// Exclude bots
+	if (StrEqual(steamId, "BOT", false)) {
 		return;
 	}
 
@@ -173,7 +189,6 @@ public OnClientAuthorized(client, const String:steamId[])
 	if (IsExcluded(steamId)) {
 		return;
 	}
-
 	
 	EngineVersion engine = GetEngineVersion();
 	if (engine == Engine_CSGO || engine == Engine_TF2) {
@@ -190,6 +205,10 @@ public OnClientAuthorized(client, const String:steamId[])
 			Format(formated, sizeof(formated), "%T", "PRIMENEEDED", client);
 			ThrowOut(client, formated);
 		}
+	}
+
+	if (engine == Engine_TF2) {
+
 	}
 
 	new totalTime, last2WeeksTime;
@@ -404,39 +423,29 @@ public HTTP_RequestComplete(Handle:HTTPRequest, bool:bFailure, bool:bRequestSucc
 	new iBodySize;
 	if (SteamWorks_GetHTTPResponseBodySize(HTTPRequest, iBodySize))
 	{
-		if (iBodySize == 0)
+		decl String:sBody[iBodySize + 1];
+		SteamWorks_GetHTTPResponseBodyData(HTTPRequest, sBody, iBodySize);
+		if (iBodySize <= 4 || StrEqual(sBody, "||"))
 		{
 			if (GetConVarBool(cvar_kickWhenPrivate))
 			{
 				decl String:formated[128];
 				Format(formated, sizeof(formated), "%T", "PRIVATEPROFILE", client);
 				ThrowOut(client, formated);
-				return;
 			}
-		}
-		else
-		{
-			decl String:sBody[iBodySize + 1];
-			SteamWorks_GetHTTPResponseBodyData(HTTPRequest, sBody, iBodySize);
-			if (StrContains(sBody, "|") >= 0 && iBodySize >= 5)
-			{
-				decl String:times[4][10];
-				ExplodeString(sBody, "|", times, sizeof times, sizeof times[]);
-				totalTime = StringToInt(times[1]);
-				last2WeeksTime = StringToInt(times[2]);
-				SetCache(steamIntId, totalTime, last2WeeksTime);
-				ApplyDecision(client, totalTime, last2WeeksTime);
-				return;
-			}
-			if (GetConVarBool(cvar_kickWhenFailure))
-			{
-				decl String:formated[128];
-				Format(formated, sizeof(formated), "%T", "ERROR", client);
-				ThrowOut(client, formated);
-			}
+			return;
+		} else if (StrContains(sBody, "|") >= 0) {
+			decl String:times[4][10];
+			ExplodeString(sBody, "|", times, sizeof times, sizeof times[]);
+			totalTime = StringToInt(times[1]);
+			last2WeeksTime = StringToInt(times[2]);
+			SetCache(steamIntId, totalTime, last2WeeksTime);
+			ApplyDecision(client, totalTime, last2WeeksTime);
+			return;
 		}
 	}
-	else if (GetConVarBool(cvar_kickWhenFailure))
+
+	if (GetConVarBool(cvar_kickWhenFailure))
 	{
 		decl String:formated[128];
 		Format(formated, sizeof(formated), "%T", "ERROR", client);
