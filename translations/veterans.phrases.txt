@@ -27,4 +27,9 @@
 		"#format"		"{1:s}"
 		"en"			"SteamId {1} removed from the exclude list"
 	}
+	
+	"PRIMENEEDED"
+	{
+		"en"			"You need to have a prime status to be able to play on this server"
+	}
 }

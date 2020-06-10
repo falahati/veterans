@@ -2,7 +2,7 @@
 #pragma dynamic 645221
 #define AUTOLOAD_EXTENSIONS
 #define REQUIRE_EXTENSIONS
-#define PLUGIN_VERSION "1.2"
+#define PLUGIN_VERSION "1.3"
 
 #include <SteamWorks>
 
@@ -19,6 +19,8 @@ new Handle:cvar_kickWhenFailure;
 new Handle:cvar_kickWhenPrivate;
 new Handle:cvar_excludeReservedSlots;
 new Handle:cvar_excludePrivileged;
+new Handle:cvar_excludePrimes;
+new Handle:cvar_kickF2P;
 new Handle:cvar_banTime;
 new Handle:cvar_gameId;
 
@@ -111,6 +113,18 @@ public OnPluginStart()
 		"Amount of time in seconds that we should not send a delicate request for the same query.",
 		FCVAR_NONE, true, 0.0, true, 31536000.0
 	);
+	cvar_excludePrimes = CreateConVar(
+		"sm_veterans_excludeprimes",
+		"0",
+		"Should we exclude players that have a prime status from punishment?",
+		FCVAR_NONE, true, 0.0, true, 1.0
+	);
+	cvar_kickF2P = CreateConVar(
+		"sm_veterans_kickf2p",
+		"0",
+		"Should we punish players that are using free 2 play version of the game?",
+		FCVAR_NONE, true, 0.0, true, 1.0
+	);
 
 	RegAdminCmd("sm_veterans_exclude", ExcludeUser, ADMFLAG_GENERIC, "Exludes a user from veterans plugin", "", 0);
 	RegAdminCmd("sm_veterans_include", IncludeUser, ADMFLAG_GENERIC, "Includes an already excluded user from veterans plugin", "", 0);
@@ -160,6 +174,24 @@ public OnClientAuthorized(client, const String:steamId[])
 		return;
 	}
 
+	
+	EngineVersion engine = GetEngineVersion();
+	if (engine == Engine_CSGO || engine == Engine_TF2) {
+		new isPrime = engine == Engine_CSGO ?
+			SteamWorks_HasLicenseForApp(client, 624820) == k_EUserHasLicenseResultHasLicense :
+			SteamWorks_HasLicenseForApp(client, 459) == k_EUserHasLicenseResultHasLicense;
+
+		if (GetConVarBool(cvar_excludePrimes) && isPrime) {
+			return;
+		}
+
+		if (GetConVarBool(cvar_kickF2P) && !isPrime) {
+			decl String:formated[128];
+			Format(formated, sizeof(formated), "%T", "PRIMENEEDED", client);
+			ThrowOut(client, formated);
+		}
+	}
+
 	new totalTime, last2WeeksTime;
 	if (GetCache(SteamIdToInt(steamId), totalTime, last2WeeksTime))
 	{
@@ -184,7 +216,7 @@ ApplyDecision(client, totalTime, last2WeeksTime)
 	decl String:formated[256];
 	Format(
 		formated, 
-		sizeof formated,
+		sizeof (formated),
 		"%T", 
 		"REJECTED", 
 		client, 
