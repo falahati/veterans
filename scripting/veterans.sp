@@ -128,9 +128,9 @@ public OnPluginStart()
 		FCVAR_NONE, true, 0.0, true, 1.0
 	);
 
-	RegAdminCmd("sm_veterans_exclude", ExcludeUser, ADMFLAG_GENERIC, "Exludes a user from veterans plugin", "", 0);
-	RegAdminCmd("sm_veterans_include", IncludeUser, ADMFLAG_GENERIC, "Includes an already excluded user from veterans plugin", "", 0);
-	RegAdminCmd("sm_veterans_clear", ClearCache, ADMFLAG_GENERIC, "Includes an already excluded user from veterans plugin", "", 0);
+	RegAdminCmd("sm_veterans_exclude", RemoveFromWhitelist, ADMFLAG_GENERIC, "Exludes a user from veterans plugin", "", 0);
+	RegAdminCmd("sm_veterans_include", AddToWhitelist, ADMFLAG_GENERIC, "Includes an already excluded user from veterans plugin", "", 0);
+	RegAdminCmd("sm_veterans_clear", ClearPlaytimeCache, ADMFLAG_GENERIC, "Includes an already excluded user from veterans plugin", "", 0);
 
 	AutoExecConfig(true, "veterans");
 	BuildPath(Path_SM, CacheFile, sizeof(CacheFile), "data/veterans_cache.txt");
@@ -144,7 +144,9 @@ public OnPluginEnd()
 
 public OnMapStart()
 {
-	CleanupCache(false);
+	CleanupPlaytimeCache(false);
+
+	// Disable plugin if it is used in a TF2 server, advertising Quickplay
 	if (GetEngineVersion() == Engine_TF2){
 		ConVar tf2QuickPlayDisable = FindConVar("tf_server_identity_disable_quickplay");
 		if(tf2QuickPlayDisable != INVALID_HANDLE)
@@ -186,8 +188,8 @@ public OnClientAuthorized(client, const String:steamId[])
 		return;
 	}
 
-	// Exclude from configuration file
-	if (IsExcluded(steamId)) {
+	// Exclude whitelisted
+	if (IsWhitelisted(steamId)) {
 		return;
 	}
 	
@@ -204,7 +206,7 @@ public OnClientAuthorized(client, const String:steamId[])
 		if (GetConVarBool(cvar_kickF2P) && !isPrime) {
 			decl String:formated[128];
 			Format(formated, sizeof(formated), "%T", "PRIMENEEDED", client);
-			ThrowOut(client, formated);
+			ThrowPlayerOut(client, formated);
 		}
 	}
 
@@ -213,20 +215,20 @@ public OnClientAuthorized(client, const String:steamId[])
 	}
 
 	new totalTime, last2WeeksTime;
-	if (GetCache(SteamIdToInt(steamId), totalTime, last2WeeksTime))
+	if (QueryCachedPlayTime(SteamIdToInt(steamId), totalTime, last2WeeksTime))
 	{
 		PrintToServer("VeteransOnly: New client, playtime loaded from cache for SteamId %s", steamId);
-		ApplyDecision(client, totalTime, last2WeeksTime);
+		CheckUserPlaytime(client, totalTime, last2WeeksTime);
 	} else {
 		PrintToServer("VeteransOnly: New client, requesting playtime for SteamId %s", steamId);
-		RequestNewData(client, steamId);
+		RequestUserInfo(client, steamId);
 	}
 }
 
 // --------------------------------- PLAYER TIME DECISION ---------------------------------
-ApplyDecision(client, totalTime, last2WeeksTime)
+CheckUserPlaytime(client, totalTime, last2WeeksTime)
 {
-	if (Decide(totalTime, last2WeeksTime))
+	if (HasEnoughPlaytime(totalTime, last2WeeksTime))
 	{
 		return;
 	}
@@ -243,23 +245,10 @@ ApplyDecision(client, totalTime, last2WeeksTime)
 		minPlaytime, 
 		minPlaytimeExcludingLast2Weeks
 	);
-	ThrowOut(client, formated);	
+	ThrowPlayerOut(client, formated);	
 }
 
-ThrowOut(client, const String:reason[])
-{
-	int banTime = GetConVarInt(cvar_banTime);
-	if (banTime > 0)
-	{
-		BanClient(client, banTime, BANFLAG_AUTHID, reason, reason);
-	}
-	else
-	{
-		KickClient(client, reason);
-	}
-}
-
-bool:Decide(int totalTime, int last2WeeksTime)
+bool:HasEnoughPlaytime(int totalTime, int last2WeeksTime)
 {
 	PrintToServer("VeteransOnly: Deciding for Total of %d minutes, last two weeks %d minutes", totalTime, last2WeeksTime);
 
@@ -271,7 +260,7 @@ bool:Decide(int totalTime, int last2WeeksTime)
 }
 
 // --------------------------------- PLAYER EXCEPTIONS ---------------------------------
-public Action:ExcludeUser(int client, int args)
+public Action:RemoveFromWhitelist(int client, int args)
 {
 	if (args < 1) {
 		ReplyToCommand(client, "Usage: !sm_veterans_exclude <steamid1> <steamid2> ...");
@@ -308,7 +297,7 @@ public Action:ExcludeUser(int client, int args)
 	return Plugin_Handled;
 } 
 
-public Action:IncludeUser(int client, int args)
+public Action:AddToWhitelist(int client, int args)
 {
 	if (args < 1) {
 		ReplyToCommand(client, "Usage: !sm_veterans_include <steamid1> <steamid2> ...");
@@ -346,7 +335,7 @@ public Action:IncludeUser(int client, int args)
 	return Plugin_Handled;
 }
 
-bool:IsExcluded(const String:steamId[]) 
+bool:IsWhitelisted(const String:steamId[]) 
 {
 	new Handle:kv = CreateKeyValues("VeteranExcludedPlayers");
 	FileToKeyValues(kv, ExcludeFile);
@@ -366,7 +355,7 @@ bool:IsExcluded(const String:steamId[])
 }
 
 // --------------------------------- WEB COMMUNICATION ---------------------------------
-RequestNewData(client, const String:steamId[])
+RequestUserInfo(client, const String:steamId[])
 {
 	decl String:gameId[16];
 	IntToString(GetConVarInt(cvar_gameId), gameId, sizeof gameId);
@@ -386,13 +375,13 @@ RequestNewData(client, const String:steamId[])
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "maxTotal", maxTotal);
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "maxTotalNo2Weeks", maxTotalNo2Weeks);
 
-	SteamWorks_SetHTTPCallbacks(hRequest, HTTP_RequestComplete);
+	SteamWorks_SetHTTPCallbacks(hRequest, UserInfoRetrieved);
 	SteamWorks_SetHTTPRequestContextValue(hRequest, SteamIdToInt(steamId), GetClientUserId(client));
 	
 	SteamWorks_SendHTTPRequest(hRequest);
 }
 
-public HTTP_RequestComplete(Handle:HTTPRequest, bool:bFailure, bool:bRequestSuccessful, EHTTPStatusCode:eStatusCode, any:steamIntId, any:userId)
+public UserInfoRetrieved(Handle:HTTPRequest, bool:bFailure, bool:bRequestSuccessful, EHTTPStatusCode:eStatusCode, any:steamIntId, any:userId)
 {
 	new client = GetClientOfUserId(userId);
 	if(!client)
@@ -412,7 +401,7 @@ public HTTP_RequestComplete(Handle:HTTPRequest, bool:bFailure, bool:bRequestSucc
 		{	
 			decl String:formated[128];
 			Format(formated, sizeof(formated), "%T", "ERROR", client);
-			ThrowOut(client, formated);
+			ThrowPlayerOut(client, formated);
 		}
 
 		LogError("VeteransOnly: Failed to retrieve user's playtime (HTTP status: %d)", eStatusCode);
@@ -432,7 +421,7 @@ public HTTP_RequestComplete(Handle:HTTPRequest, bool:bFailure, bool:bRequestSucc
 			{
 				decl String:formated[128];
 				Format(formated, sizeof(formated), "%T", "PRIVATEPROFILE", client);
-				ThrowOut(client, formated);
+				ThrowPlayerOut(client, formated);
 			}
 			return;
 		} else if (StrContains(sBody, "|") >= 0) {
@@ -440,8 +429,8 @@ public HTTP_RequestComplete(Handle:HTTPRequest, bool:bFailure, bool:bRequestSucc
 			ExplodeString(sBody, "|", times, sizeof times, sizeof times[]);
 			totalTime = StringToInt(times[1]);
 			last2WeeksTime = StringToInt(times[2]);
-			SetCache(steamIntId, totalTime, last2WeeksTime);
-			ApplyDecision(client, totalTime, last2WeeksTime);
+			CachePlaytime(steamIntId, totalTime, last2WeeksTime);
+			CheckUserPlaytime(client, totalTime, last2WeeksTime);
 			return;
 		}
 	}
@@ -450,17 +439,17 @@ public HTTP_RequestComplete(Handle:HTTPRequest, bool:bFailure, bool:bRequestSucc
 	{
 		decl String:formated[128];
 		Format(formated, sizeof(formated), "%T", "ERROR", client);
-		ThrowOut(client, formated);
+		ThrowPlayerOut(client, formated);
 	}
 }
 
 // --------------------------------- PLAYER TIME CACHE ---------------------------------
-public Action:ClearCache(client, int args)
+public Action:ClearPlaytimeCache(client, int args)
 {
-	CleanupCache(true);
+	CleanupPlaytimeCache(true);
 }
 
-CleanupCache(bool:force)
+CleanupPlaytimeCache(bool:clearAll)
 {
 	new Handle:kv = CreateKeyValues("VeteranPlayersCache");
 	FileToKeyValues(kv, CacheFile);
@@ -477,7 +466,7 @@ CleanupCache(bool:force)
 		lastUpdate =		KvGetNum(kv, "LastUpdate");
 		totalTime =			KvGetNum(kv, "TotalTime");
 		last2WeeksTime =	KvGetNum(kv, "Last2WeeksTime");
-		if (force || (lastUpdate + maxTime < currentTime && !Decide(totalTime, last2WeeksTime)))
+		if ((clearAll || lastUpdate + maxTime < currentTime) && !HasEnoughPlaytime(totalTime, last2WeeksTime))
 		{
 			KvDeleteThis(kv);
 		}
@@ -487,7 +476,7 @@ CleanupCache(bool:force)
 	CloseHandle(kv);
 }
 
-SetCache(int steamIntId, int totalTime, int last2WeeksTime)
+CachePlaytime(int steamIntId, int totalTime, int last2WeeksTime)
 {
 	decl String:steamId[32];
 	IntToString(steamIntId, steamId, sizeof steamId);
@@ -503,7 +492,7 @@ SetCache(int steamIntId, int totalTime, int last2WeeksTime)
 	CloseHandle(kv);
 }
 
-bool:GetCache(int steamIntId, int &totalTime, int &last2WeeksTime)
+bool:QueryCachedPlayTime(int steamIntId, int &totalTime, int &last2WeeksTime)
 {
 	decl String:steamId[32];
 	IntToString(steamIntId, steamId, sizeof steamId);
@@ -529,6 +518,19 @@ int SteamIdToInt(const String:steamId[])
     decl String:subinfo[3][16];
     ExplodeString(steamId, ":", subinfo, sizeof subinfo, sizeof subinfo[]);
     return (StringToInt(subinfo[2]) * 2) + StringToInt(subinfo[1]);
+}
+
+ThrowPlayerOut(client, const String:reason[])
+{
+	int banTime = GetConVarInt(cvar_banTime);
+	if (banTime > 0)
+	{
+		BanClient(client, banTime, BANFLAG_AUTHID, reason, reason);
+	}
+	else
+	{
+		KickClient(client, reason);
+	}
 }
 
 // --------------------------------- SERVER TAGS ---------------------------------
