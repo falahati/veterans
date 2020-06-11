@@ -171,21 +171,23 @@ public OnClientAuthorized(client, const String:steamId[])
 		return;
 	}
 
-	new userFlags = GetUserFlagBits(client);
+	new adminId = GetUserAdmin(client);
 
-	// Exclude admins
-	if (userFlags & ADMFLAG_GENERIC == ADMFLAG_GENERIC) {
-		return;
-	}
+	if (adminId != INVALID_ADMIN_ID) {
+		// Exclude privileged
+		if (GetConVarBool(cvar_excludePrivileged)) {
+			return;
+		}
+		
+		// Exclude reserved slots
+		if (GetConVarBool(cvar_excludeReservedSlots) && GetAdminFlag(adminId, ADMFLAG_RESERVATION)) {
+			return;
+		}
 
-	// Exclude privileged
-	if (GetConVarBool(cvar_excludePrivileged) && userFlags > 0) {
-		return;
-	}
-	
-	// Exclude reserved slots
-	if (GetConVarBool(cvar_excludeReservedSlots) && userFlags & ADMFLAG_RESERVATION == ADMFLAG_RESERVATION) {
-		return;
+		// Exclude admins
+		if (GetAdminFlag(adminId, ADMFLAG_GENERIC) || GetAdminFlag(adminId, ADMFLAG_ROOT)) {
+			return;
+		}
 	}
 
 	// Exclude whitelisted
