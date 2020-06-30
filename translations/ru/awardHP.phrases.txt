@@ -49,7 +49,7 @@
 
 	"Award Buff HP"
 	{
-		"ru"		"%i Buffer HP"
+		"ru"		"Усилитель %i ОЗ"
 	}
 
 	"Full HP"
