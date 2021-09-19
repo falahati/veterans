@@ -6,83 +6,80 @@ ini_set("error_log", "php-error.log");
 
 function Handle()
 {
-	if (!isset($_GET['steamId']) || !isset($_GET['gameId']))
+	if (!isset($_GET['key']) || !isset($_GET['steamId']) || !isset($_GET['gameId']))
 	{
 		header('X-PHP-Response-Code: 406', true, 406);
-		return "";
+		goto returnFinally;
 	}
 
+	$key = trim(strtoupper($_GET['key']));
 	$steamId = trim(strtoupper($_GET['steamId']));
 	$gameId = intval($_GET['gameId']);
 	$communityId = GetFriendId($steamId);
 
-	if (!$gameId || !$communityId)
+	if (!$key || !$gameId || !$communityId)
 	{
 		header('X-PHP-Response-Code: 406', true, 406);
-		return "";
+		goto returnFinally;
 	}
-	
-	$url = "http://steamcommunity.com/profiles/" . $communityId . "/games/?tab=all&xml=1";
+
 	$cacheFile = __DIR__ . DIRECTORY_SEPARATOR . "WebCache" . DIRECTORY_SEPARATOR . "$communityId.$gameId";
 	if (IsCacheAvailable($cacheFile, 60))
 	{
-		$content = @file_get_contents($cacheFile);
-		if ($content)
+		$cachedResult = @file_get_contents($cacheFile);
+		if ($cachedResult)
 		{
-			return $content;
+			return $cachedResult;
 		}
 	}
-	
-	$endUrl = $url;
-	$content = DownloadWithCurl($url, $endUrl);
-	if ($content === false)
+
+	// --------------- Query play time ---------------
+	// encoded json: {"steamid":xxxxxxxxxxxxxxxxx,"appids_filter":[xxx]}
+	$playtime_query =
+		"http://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key="
+		. $key . "&format=json&input_json=%7B%22steamid%22%3A"
+		. $communityId . "%2C%22appids_filter%22%3A%5B"
+		. $gameId . "%5D%7D";
+
+	$playtime_json = @file_get_contents($playtime_query);
+
+	$playtime_struct = json_decode($playtime_json);
+	$totalTime = $playtime_struct->response->games[0]->playtime_forever ?? 0;
+	$recentTime = $playtime_struct->response->games[0]->playtime_2weeks ?? 0;
+
+	// --------------- Query membership (optional) ---------------
+	if (isset($_GET['groupId']))
 	{
-		header('X-PHP-Response-Code: 502', true, 502);
-		return "";
-	}
-	
-	// Failed to reach or private
-	if (
-		!$content || 
-		strpos(strtolower($endUrl), "/games") === false || 
-		strpos(strtolower($endUrl), "tab=all") === false || 
-		strpos(strtolower($content), "<error>") !== false ||
-		!($result = ParseXML($content, $gameId))
-	)
-	{
-		return "";
+		$groupId = trim($_GET['groupId']);
+
+		$groups_query =
+			"http://api.steampowered.com/ISteamUser/GetUserGroupList/v1/?key="
+			. $key . "&format=json&steamid="
+			. $communityId;
+
+		$groups_json = @file_get_contents($groups_query);
+
+		// Failed to reach
+		if ($groups_json === false)
+		{
+			goto returnFinally;
+		}
+
+		if (strpos($groups_json, $groupId) !== false)
+		{
+			$isGroupMember = 1;
+		}
 	}
 
-	// Cache only if the result is valid
-	@file_put_contents($cacheFile, $result);
+	returnFinally:
+	$result = sprintf("|%d|%d|%d|",
+		$totalTime ?? 0, $recentTime ?? 0, $isGroupMember ?? 0);
+	if (strcmp($result, "|0|0|0|") !== 0) // Cache only if the result is valid
+	{
+		@file_put_contents($cacheFile, $result);
+	}
+
 	return $result;
-}
-
-function ParseXML($xml, $gameId)
-{
-	$data = new SimpleXMLElement($xml);
-	if (!$data)
-	{
-		return false;
-	}
-	
-	$result = $data->xpath('(//gamesList/games/game[appID = "' . $gameId . '"])[1]');
-	if (count($result) != 1)
-	{
-		return "";
-	}
-	
-	$result = $result[0];
-	if (isset($result->hoursOnRecord) || isset($result->hoursLast2Weeks)) 
-	{
-		return sprintf(
-			"%d|%d", 
-			isset($result->hoursOnRecord) ? ParseAsMinutes($result->hoursOnRecord) : 0, 
-			isset($result->hoursLast2Weeks) ? ParseAsMinutes($result->hoursLast2Weeks) : 0
-		);
-	}
-
-	return "";
 }
 
 function GetFriendId($steamId)
@@ -107,16 +104,6 @@ function GetFriendId($steamId)
 	return 76561197960265728 + (2 * $clientId) + $authServer;
 }
 
-function ParseAsMinutes($str)
-{
-	$str = filter_var($str, FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
-	if ($str = floatval($str))
-	{
-		return (int)($str * 60);
-	}
-	return 0;
-}
-
 function IsCacheAvailable($file, $mins = 60)
 {
 	$current_time = time(); 
@@ -124,18 +111,5 @@ function IsCacheAvailable($file, $mins = 60)
 	return @file_exists($file) && ($current_time - $expire_time < @filemtime($file));
 }
 
-function DownloadWithCurl($url, &$endUrl)
-{
-	$ch = curl_init();
-	curl_setopt($ch, CURLOPT_URL, $url);
-	curl_setopt($ch, CURLOPT_HEADER, false);
-	curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-	$a = curl_exec($ch);
-	$endUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
-	curl_close($ch);
-	return $a;
-}
-
-echo "|" . Handle() . "|";
+echo Handle();
 die;
