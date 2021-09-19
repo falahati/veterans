@@ -4,20 +4,22 @@ ini_set("display_errors", 0);
 ini_set("log_errors", 1);
 ini_set("error_log", "php-error.log");
 
+// you can acquire a key at https://steamcommunity.com/dev/apikey
+define('APIKEY', "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");  // replace with your key
+
 function Handle()
 {
-	if (!isset($_GET['key']) || !isset($_GET['steamId']) || !isset($_GET['gameId']))
+	if (!defined('APIKEY') || !isset($_GET['steamId']) || !isset($_GET['gameId']))
 	{
 		header('X-PHP-Response-Code: 406', true, 406);
 		goto returnFinally;
 	}
 
-	$key = trim(strtoupper($_GET['key']));
 	$steamId = trim(strtoupper($_GET['steamId']));
 	$gameId = intval($_GET['gameId']);
 	$communityId = GetFriendId($steamId);
 
-	if (!$key || !$gameId || !$communityId)
+	if (!$gameId || !$communityId)
 	{
 		header('X-PHP-Response-Code: 406', true, 406);
 		goto returnFinally;
@@ -37,7 +39,7 @@ function Handle()
 	// encoded json: {"steamid":xxxxxxxxxxxxxxxxx,"appids_filter":[xxx]}
 	$playtime_query =
 		"http://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key="
-		. $key . "&format=json&input_json=%7B%22steamid%22%3A"
+		. APIKEY . "&format=json&input_json=%7B%22steamid%22%3A"
 		. $communityId . "%2C%22appids_filter%22%3A%5B"
 		. $gameId . "%5D%7D";
 
@@ -54,7 +56,7 @@ function Handle()
 
 		$groups_query =
 			"http://api.steampowered.com/ISteamUser/GetUserGroupList/v1/?key="
-			. $key . "&format=json&steamid="
+			. APIKEY . "&format=json&steamid="
 			. $communityId;
 
 		$groups_json = @file_get_contents($groups_query);

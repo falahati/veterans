@@ -12,7 +12,6 @@ new String:ExcludeFile[PLATFORM_MAX_PATH];
 new bool:isBlocked = false;
 
 new Handle:cvar_url;
-new Handle:cvar_apiKey;
 new Handle:cvar_enable;
 new Handle:cvar_minPlaytime;
 new Handle:cvar_minPlaytimeExcludingLast2Weeks;
@@ -50,12 +49,6 @@ public OnPluginStart()
 		"sm_veterans_url",
 		"http://falahati.net/steamapi/queryPlaytime.php",
 		"Address of the PHP file responsible for getting user played time.",
-		FCVAR_PROTECTED
-	);
-	cvar_apiKey = CreateConVar(
-		"sm_veterans_apikey",
-		"1B95D6DBDBE6F4E07589FD5671922E23",
-		"Steam Web API key (compulsory, you can require a key at https://steamcommunity.com/dev/apikey)",
 		FCVAR_PROTECTED
 	);
 	cvar_enable = CreateConVar(
@@ -387,8 +380,6 @@ bool:IsWhitelisted(const String:steamId[])
 // --------------------------------- WEB COMMUNICATION ---------------------------------
 RequestUserInfo(client, const String:steamId[])
 {
-	decl String:apiKey[40];
-	GetConVarString(cvar_apiKey, apiKey, sizeof apiKey);
 	decl String:gameId[16];
 	GetConVarString(cvar_gameId, gameId, sizeof gameId);
 	
@@ -397,8 +388,7 @@ RequestUserInfo(client, const String:steamId[])
 	new Handle:hRequest = SteamWorks_CreateHTTPRequest(EHTTPMethod:k_EHTTPMethodGET, url);
 	
 	SteamWorks_SetHTTPRequestNetworkActivityTimeout(hRequest, GetConVarInt(cvar_connectionTimeout));
-	
-	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "key", apiKey);
+
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "gameId", gameId);
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "steamId", steamId);
 	if (GetConVarBool(cvar_excludeGroupMember))
