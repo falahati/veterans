@@ -172,7 +172,7 @@ public OnClientAuthorized(client, const String:steamId[])
 		return;
 	}
 
-	new adminId = GetUserAdmin(client);
+	AdminId adminId = GetUserAdmin(client);
 
 	if (adminId != INVALID_ADMIN_ID) {
 		// Exclude privileged
@@ -181,12 +181,12 @@ public OnClientAuthorized(client, const String:steamId[])
 		}
 		
 		// Exclude reserved slots
-		if (GetConVarBool(cvar_excludeReservedSlots) && GetAdminFlag(adminId, ADMFLAG_RESERVATION)) {
+		if (GetConVarBool(cvar_excludeReservedSlots) && GetAdminFlag(adminId, Admin_Reservation)) {
 			return;
 		}
 
 		// Exclude admins
-		if (GetAdminFlag(adminId, ADMFLAG_GENERIC) || GetAdminFlag(adminId, ADMFLAG_ROOT)) {
+		if (GetAdminFlag(adminId, Admin_Generic) || GetAdminFlag(adminId, Admin_Root)) {
 			return;
 		}
 	}
