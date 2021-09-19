@@ -128,12 +128,13 @@ public OnPluginStart()
 		FCVAR_NONE, true, 0.0, true, 1.0
 	);
 
-	RegAdminCmd("sm_veterans_exclude", RemoveFromWhitelist, ADMFLAG_GENERIC, "Exludes a user from veterans plugin", "", 0);
-	RegAdminCmd("sm_veterans_include", AddToWhitelist, ADMFLAG_GENERIC, "Includes an already excluded user from veterans plugin", "", 0);
-	RegAdminCmd("sm_veterans_clear", ClearPlaytimeCache, ADMFLAG_GENERIC, "Includes an already excluded user from veterans plugin", "", 0);
+	RegAdminCmd("sm_veterans_exclude", AddToWhitelist, ADMFLAG_GENERIC, "Exludes a user from veterans plugin", "", 0);
+	RegAdminCmd("sm_veterans_include", RemoveFromWhitelist, ADMFLAG_GENERIC, "Includes an already excluded user from veterans plugin", "", 0);
+	RegAdminCmd("sm_veterans_clear", ClearPlaytimeCache, ADMFLAG_GENERIC, "Clear cache", "", 0);
 
 	AutoExecConfig(true, "veterans");
-	BuildPath(Path_SM, CacheFile, sizeof(CacheFile), "data/veterans_cache.txt");
+	new iPort = GetConVarInt(FindConVar("hostport"));
+	BuildPath(Path_SM, CacheFile, sizeof(CacheFile), "data/veterans_cache_%d.txt", iPort);
 	BuildPath(Path_SM, ExcludeFile, sizeof(ExcludeFile), "data/veterans_exclude.txt");
 }
 
@@ -262,7 +263,7 @@ bool:HasEnoughPlaytime(int totalTime, int last2WeeksTime)
 }
 
 // --------------------------------- PLAYER EXCEPTIONS ---------------------------------
-public Action:RemoveFromWhitelist(int client, int args)
+public Action:AddToWhitelist(int client, int args)
 {
 	if (args < 1) {
 		ReplyToCommand(client, "Usage: !sm_veterans_exclude <steamid1> <steamid2> ...");
@@ -299,7 +300,7 @@ public Action:RemoveFromWhitelist(int client, int args)
 	return Plugin_Handled;
 } 
 
-public Action:AddToWhitelist(int client, int args)
+public Action:RemoveFromWhitelist(int client, int args)
 {
 	if (args < 1) {
 		ReplyToCommand(client, "Usage: !sm_veterans_include <steamid1> <steamid2> ...");
@@ -474,7 +475,7 @@ CleanupPlaytimeCache(bool:clearAll)
 		}
 	} while (KvGotoNextKey(kv));
 	KvRewind(kv);
-	KeyValuesToFile(kv, "VeteranPlayerCache.txt");
+	KeyValuesToFile(kv, CacheFile);
 	CloseHandle(kv);
 }
 
