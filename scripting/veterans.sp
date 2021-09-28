@@ -22,6 +22,8 @@ new Handle:cvar_kickWhenPrivate;
 new Handle:cvar_excludeReservedSlots;
 new Handle:cvar_excludePrivileged;
 new Handle:cvar_excludePrimes;
+new Handle:cvar_excludeGroupMember;
+new Handle:cvar_groupID;
 new Handle:cvar_kickF2P;
 new Handle:cvar_banTime;
 new Handle:cvar_gameId;
@@ -85,6 +87,18 @@ public OnPluginStart()
 		"Should we exclude privileged players from punishment?",
 		FCVAR_NONE, true, 0.0, true, 1.0
 	);
+	cvar_excludeGroupMember = CreateConVar(
+		"sm_veterans_excludegroupmember",
+		"0",
+		"Should we exclude players that are members of our Steam group?",
+		FCVAR_NONE, true, 0.0, true, 1.0
+	);
+	cvar_groupID = CreateConVar(
+		"sm_veterans_groupid",
+		"xxxxxxxx",
+		"Steam Group ID (same as your sv_steamgroup)",
+		FCVAR_NONE
+	);
 	cvar_connectionTimeout = CreateConVar(
 		"sm_veterans_timeout",
 		"10",
@@ -128,12 +142,13 @@ public OnPluginStart()
 		FCVAR_NONE, true, 0.0, true, 1.0
 	);
 
-	RegAdminCmd("sm_veterans_exclude", RemoveFromWhitelist, ADMFLAG_GENERIC, "Exludes a user from veterans plugin", "", 0);
-	RegAdminCmd("sm_veterans_include", AddToWhitelist, ADMFLAG_GENERIC, "Includes an already excluded user from veterans plugin", "", 0);
-	RegAdminCmd("sm_veterans_clear", ClearPlaytimeCache, ADMFLAG_GENERIC, "Includes an already excluded user from veterans plugin", "", 0);
+	RegAdminCmd("sm_veterans_exclude", AddToWhitelist, ADMFLAG_GENERIC, "Exludes a user from veterans plugin", "", 0);
+	RegAdminCmd("sm_veterans_include", RemoveFromWhitelist, ADMFLAG_GENERIC, "Includes an already excluded user from veterans plugin", "", 0);
+	RegAdminCmd("sm_veterans_clear", ClearPlaytimeCache, ADMFLAG_GENERIC, "Clear cache", "", 0);
 
 	AutoExecConfig(true, "veterans");
-	BuildPath(Path_SM, CacheFile, sizeof(CacheFile), "data/veterans_cache.txt");
+	new iPort = GetConVarInt(FindConVar("hostport"));
+	BuildPath(Path_SM, CacheFile, sizeof(CacheFile), "data/veterans_cache_%d.txt", iPort);
 	BuildPath(Path_SM, ExcludeFile, sizeof(ExcludeFile), "data/veterans_exclude.txt");
 }
 
@@ -171,7 +186,7 @@ public OnClientAuthorized(client, const String:steamId[])
 		return;
 	}
 
-	new adminId = GetUserAdmin(client);
+	AdminId adminId = GetUserAdmin(client);
 
 	if (adminId != INVALID_ADMIN_ID) {
 		// Exclude privileged
@@ -180,12 +195,12 @@ public OnClientAuthorized(client, const String:steamId[])
 		}
 		
 		// Exclude reserved slots
-		if (GetConVarBool(cvar_excludeReservedSlots) && GetAdminFlag(adminId, ADMFLAG_RESERVATION)) {
+		if (GetConVarBool(cvar_excludeReservedSlots) && GetAdminFlag(adminId, Admin_Reservation)) {
 			return;
 		}
 
 		// Exclude admins
-		if (GetAdminFlag(adminId, ADMFLAG_GENERIC) || GetAdminFlag(adminId, ADMFLAG_ROOT)) {
+		if (GetAdminFlag(adminId, Admin_Generic) || GetAdminFlag(adminId, Admin_Root)) {
 			return;
 		}
 	}
@@ -216,11 +231,11 @@ public OnClientAuthorized(client, const String:steamId[])
 
 	}
 
-	new totalTime, last2WeeksTime;
-	if (QueryCachedPlayTime(SteamIdToInt(steamId), totalTime, last2WeeksTime))
+	new totalTime, last2WeeksTime, isGroupMember;
+	if (QueryCachedData(SteamIdToInt(steamId), totalTime, last2WeeksTime, isGroupMember))
 	{
 		PrintToServer("VeteransOnly: New client, playtime loaded from cache for SteamId %s", steamId);
-		CheckUserPlaytime(client, totalTime, last2WeeksTime);
+		CheckIfUserQualified(client, totalTime, last2WeeksTime, isGroupMember);
 	} else {
 		PrintToServer("VeteransOnly: New client, requesting playtime for SteamId %s", steamId);
 		RequestUserInfo(client, steamId);
@@ -228,8 +243,14 @@ public OnClientAuthorized(client, const String:steamId[])
 }
 
 // --------------------------------- PLAYER TIME DECISION ---------------------------------
-CheckUserPlaytime(client, totalTime, last2WeeksTime)
+CheckIfUserQualified(client, totalTime, last2WeeksTime, isGroupMember)
 {
+	if (GetConVarBool(cvar_excludeGroupMember) && isGroupMember)
+	{
+		PrintToServer("VeteransOnly: Excluded for being a group member");
+		return;
+	}
+
 	if (HasEnoughPlaytime(totalTime, last2WeeksTime))
 	{
 		return;
@@ -262,7 +283,7 @@ bool:HasEnoughPlaytime(int totalTime, int last2WeeksTime)
 }
 
 // --------------------------------- PLAYER EXCEPTIONS ---------------------------------
-public Action:RemoveFromWhitelist(int client, int args)
+public Action:AddToWhitelist(int client, int args)
 {
 	if (args < 1) {
 		ReplyToCommand(client, "Usage: !sm_veterans_exclude <steamid1> <steamid2> ...");
@@ -299,7 +320,7 @@ public Action:RemoveFromWhitelist(int client, int args)
 	return Plugin_Handled;
 } 
 
-public Action:AddToWhitelist(int client, int args)
+public Action:RemoveFromWhitelist(int client, int args)
 {
 	if (args < 1) {
 		ReplyToCommand(client, "Usage: !sm_veterans_include <steamid1> <steamid2> ...");
@@ -360,22 +381,22 @@ bool:IsWhitelisted(const String:steamId[])
 RequestUserInfo(client, const String:steamId[])
 {
 	decl String:gameId[16];
-	IntToString(GetConVarInt(cvar_gameId), gameId, sizeof gameId);
-	decl String:maxTotal[16];
-	IntToString(GetConVarInt(cvar_minPlaytime), maxTotal, sizeof maxTotal);
-	decl String:maxTotalNo2Weeks[16];
-	IntToString(GetConVarInt(cvar_minPlaytimeExcludingLast2Weeks), maxTotalNo2Weeks, sizeof maxTotalNo2Weeks);
+	GetConVarString(cvar_gameId, gameId, sizeof gameId);
 	
 	decl String:url[256];
 	GetConVarString(cvar_url, url, sizeof url);
 	new Handle:hRequest = SteamWorks_CreateHTTPRequest(EHTTPMethod:k_EHTTPMethodGET, url);
 	
 	SteamWorks_SetHTTPRequestNetworkActivityTimeout(hRequest, GetConVarInt(cvar_connectionTimeout));
-	
+
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "gameId", gameId);
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "steamId", steamId);
-	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "maxTotal", maxTotal);
-	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "maxTotalNo2Weeks", maxTotalNo2Weeks);
+	if (GetConVarBool(cvar_excludeGroupMember))
+	{
+		decl String:groupId[16];
+		GetConVarString(cvar_groupID, groupId, sizeof groupId);
+		SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "groupId", groupId);
+	}
 
 	SteamWorks_SetHTTPCallbacks(hRequest, UserInfoRetrieved);
 	SteamWorks_SetHTTPRequestContextValue(hRequest, SteamIdToInt(steamId), GetClientUserId(client));
@@ -410,14 +431,14 @@ public UserInfoRetrieved(Handle:HTTPRequest, bool:bFailure, bool:bRequestSuccess
 		return;
 	}
 	
-	new totalTime, last2WeeksTime;
+	new totalTime, last2WeeksTime, isGroupMember;
 
 	new iBodySize;
 	if (SteamWorks_GetHTTPResponseBodySize(HTTPRequest, iBodySize))
 	{
 		decl String:sBody[iBodySize + 1];
 		SteamWorks_GetHTTPResponseBodyData(HTTPRequest, sBody, iBodySize);
-		if (iBodySize <= 4 || StrEqual(sBody, "||"))
+		if (iBodySize <= 6 || StrContains(sBody, "|0|0|0|") != -1)
 		{
 			if (GetConVarBool(cvar_kickWhenPrivate))
 			{
@@ -427,12 +448,13 @@ public UserInfoRetrieved(Handle:HTTPRequest, bool:bFailure, bool:bRequestSuccess
 			}
 			return;
 		} else if (StrContains(sBody, "|") >= 0) {
-			decl String:times[4][10];
+			decl String:times[5][10];
 			ExplodeString(sBody, "|", times, sizeof times, sizeof times[]);
 			totalTime = StringToInt(times[1]);
 			last2WeeksTime = StringToInt(times[2]);
-			CachePlaytime(steamIntId, totalTime, last2WeeksTime);
-			CheckUserPlaytime(client, totalTime, last2WeeksTime);
+			isGroupMember = StringToInt(times[3]);
+			CacheUserData(steamIntId, totalTime, last2WeeksTime, isGroupMember);
+			CheckIfUserQualified(client, totalTime, last2WeeksTime, isGroupMember);
 			return;
 		}
 	}
@@ -474,11 +496,11 @@ CleanupPlaytimeCache(bool:clearAll)
 		}
 	} while (KvGotoNextKey(kv));
 	KvRewind(kv);
-	KeyValuesToFile(kv, "VeteranPlayerCache.txt");
+	KeyValuesToFile(kv, CacheFile);
 	CloseHandle(kv);
 }
 
-CachePlaytime(int steamIntId, int totalTime, int last2WeeksTime)
+CacheUserData(int steamIntId, int totalTime, int last2WeeksTime, int isGroupMember)
 {
 	decl String:steamId[32];
 	IntToString(steamIntId, steamId, sizeof steamId);
@@ -489,12 +511,13 @@ CachePlaytime(int steamIntId, int totalTime, int last2WeeksTime)
 	KvSetNum(kv, "LastUpdate", GetTime());
 	KvSetNum(kv, "TotalTime", totalTime);
 	KvSetNum(kv, "Last2WeeksTime", last2WeeksTime);
+	KvSetNum(kv, "isGroupMember", isGroupMember);
 	KvRewind(kv);
 	KeyValuesToFile(kv, CacheFile);
 	CloseHandle(kv);
 }
 
-bool:QueryCachedPlayTime(int steamIntId, int &totalTime, int &last2WeeksTime)
+bool:QueryCachedData(int steamIntId, int &totalTime, int &last2WeeksTime, int &isGroupMember)
 {
 	decl String:steamId[32];
 	IntToString(steamIntId, steamId, sizeof steamId);
@@ -510,6 +533,7 @@ bool:QueryCachedPlayTime(int steamIntId, int &totalTime, int &last2WeeksTime)
 	}
 	totalTime =			KvGetNum(kv, "TotalTime");
 	last2WeeksTime =	KvGetNum(kv, "Last2WeeksTime");
+	isGroupMember =		KvGetNum(kv, "isGroupMember");
 	CloseHandle(kv);
 	return true;
 }
